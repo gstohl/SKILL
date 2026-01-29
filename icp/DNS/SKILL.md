@@ -59,6 +59,56 @@ You should see your domain names listed.
 
 ## Step 2: Configure DNS Records
 
+---
+
+### ⚠️ CRITICAL: UNDERSCORES ARE REQUIRED ⚠️
+
+**The underscores in `_acme-challenge` and `_canister-id` are NOT optional!**
+
+These are special DNS record naming conventions:
+- `_acme-challenge` - Standard ACME protocol prefix for SSL certificate validation
+- `_canister-id` - ICP-specific prefix to identify which canister serves this domain
+
+**Common mistakes:**
+- ❌ `acme-challenge` (missing underscore)
+- ❌ `canister-id` (missing underscore)
+- ❌ `_acme_challenge` (underscore instead of hyphen)
+- ✅ `_acme-challenge` (correct!)
+- ✅ `_canister-id` (correct!)
+
+---
+
+### DNS Record Details Explained
+
+#### 1. CNAME Record (Main Domain Routing)
+| Field | Value | Purpose |
+|-------|-------|---------|
+| Type | `CNAME` (or `ALIAS` for apex) | Points your domain to ICP's boundary nodes |
+| Name | `@` (apex) or `www` (subdomain) | The domain/subdomain you're configuring |
+| Value | `<your-domain>.icp1.io` | ICP's boundary node cluster that serves your canister |
+
+**What it does:** Routes all HTTP/HTTPS traffic for your domain to ICP's infrastructure. The `icp1.io` suffix tells ICP's boundary nodes to look up which canister should handle requests for this domain.
+
+#### 2. CNAME Record for ACME Challenge (SSL Validation)
+| Field | Value | Purpose |
+|-------|-------|---------|
+| Type | `CNAME` | Delegates SSL certificate validation to ICP |
+| Name | `_acme-challenge` or `_acme-challenge.www` | **UNDERSCORE REQUIRED!** ACME protocol standard |
+| Value | `_acme-challenge.<your-domain>.icp2.io` | ICP's certificate authority validation endpoint |
+
+**What it does:** When Let's Encrypt (the SSL certificate authority) tries to validate that ICP controls your domain, it looks for a TXT record at `_acme-challenge.yourdomain.com`. This CNAME redirects that lookup to ICP's servers (`icp2.io`), allowing ICP to automatically respond with the correct validation token. Without this, SSL certificates CANNOT be provisioned.
+
+#### 3. TXT Record for Canister ID
+| Field | Value | Purpose |
+|-------|-------|---------|
+| Type | `TXT` | Stores text data in DNS |
+| Name | `_canister-id` or `_canister-id.www` | **UNDERSCORE REQUIRED!** ICP lookup convention |
+| Value | `<your-canister-id>` | e.g., `sx3pz-5qaaa-aaaai-q5ela-cai` |
+
+**What it does:** Tells ICP's boundary nodes which canister should serve content for this domain. When a request comes in for `example.com`, the boundary node queries `_canister-id.example.com` to find the canister ID, then routes the request to that canister.
+
+---
+
 ### For apex domain (`example.com`)
 
 | Type | Name | Value | Proxy |
@@ -79,6 +129,17 @@ You should see your domain names listed.
 | CNAME | `www` | `www.example.com.icp1.io` | OFF |
 | CNAME | `_acme-challenge.www` | `_acme-challenge.www.example.com.icp2.io` | OFF |
 | TXT | `_canister-id.www` | `<your-canister-id>` | OFF |
+
+---
+
+### Why icp1.io vs icp2.io?
+
+- **`icp1.io`** - Primary boundary node cluster for serving content
+- **`icp2.io`** - Dedicated cluster for ACME/SSL certificate validation
+
+These are separate to ensure certificate validation always works even under high traffic loads.
+
+---
 
 ### Cloudflare-Specific Notes
 
